@@ -9,10 +9,12 @@ class Algorithm:
     def __init__(
         self,
         n_samples: int
+
     ) -> None:
         
         self.n_samples = n_samples
         
+
         
 class GridScanAlgo(Algorithm):
     
@@ -20,7 +22,8 @@ class GridScanAlgo(Algorithm):
         self,
         domain: Tensor, #shape (ndim, 2) tensor domain[i,0], domain[i,1] are lower, upper bound respectively for ith input dimension. 
         n_samples: int,
-        n_steps_sample_grid: Union[int, list[int]]
+        n_steps_sample_grid: Union[int, list[int]],
+        gpu: Optional[bool] = False
     ) -> None:
         
         self.domain = domain
@@ -38,6 +41,16 @@ class GridScanAlgo(Algorithm):
             
         # a list (length=ndim) of integers specifying the number of steps per dimension in the sample grid.    
         self.n_steps_sample_grid = n_steps_sample_grid 
+        
+        if gpu:
+            if torch.cuda.is_available():
+                self.gpu = True
+                torch.set_default_tensor_type('torch.cuda.DoubleTensor')
+            else:
+                print('CUDA not available. Using CPU.')
+                self.gpu = False
+        else:
+            self.gpu = False
                 
             
     def build_input_mesh(self):
@@ -53,6 +66,7 @@ class GridScanAlgo(Algorithm):
             xs_n_by_d = x_mesh_columnized_tuple[0]
         else:
             xs_n_by_d = torch.cat(x_mesh_columnized_tuple, dim=1)
+            
             
         return xs_n_by_d, x_mesh_tuple
             
@@ -70,6 +84,7 @@ class GridScanAlgo(Algorithm):
 
         self.sample_xs, self.sample_ys, self.x_mesh_tuple, self.y_mesh_samples = sample_xs, sample_ys, x_mesh_tuple, y_mesh_samples
         
+            
         return sample_xs, sample_ys, x_mesh_tuple, y_mesh_samples
     
     
@@ -99,7 +114,6 @@ class GridMinimizeEmittance(GridScanAlgo):
     quad_length: Optional[float] = 0.1,
     drift_length: Optional[float] = 1.0,
     squared: Optional[bool] = False
-
 ) -> None:
 
         if n_steps_measurement_param < 3:
@@ -124,6 +138,8 @@ class GridMinimizeEmittance(GridScanAlgo):
         self.n_steps_tuning_params = n_steps_tuning_params
         self.n_steps_sample_grid = n_steps_tuning_params + [n_steps_measurement_param] #append the number of steps for the measurement param
         
+        
+
         
     def get_exe_paths(self, model: Model):
     
@@ -158,6 +174,7 @@ class GridMinimizeEmittance(GridScanAlgo):
         
         self.xs_exe, self.ys_exe, self.emits_flat, self.emits_squared_raw_flat = xs_exe, ys_exe, emits_flat, emits_squared_raw_flat
         
+            
         return xs_exe, ys_exe
     
     def mean_prediction(self, model: Model):

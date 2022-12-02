@@ -40,8 +40,9 @@ def convergence_results(trial_data, plot=False):
             std_devs = []
             gt_emits_at_x_star_pred = []
             avg_sample_distances = []
-            
+            print('Trial:', trial)
             for i in trial_data[trial].keys():
+                print('iter:', i)
                 iter_data = trial_data[trial][i]
                 ##########################################
                 rng_state = iter_data['rng_state']
@@ -58,8 +59,8 @@ def convergence_results(trial_data, plot=False):
     
                 pred_algo = GridMinimizeEmittance(domain = domain, 
                                n_samples = 1, 
-                               n_steps_tuning_params = 51,
-                                n_steps_measurement_param = 11,
+                               n_steps_tuning_params = 21,
+                                n_steps_measurement_param = 3,
                                 squared = squared)
     
                 x_star_pred = pred_algo.mean_prediction(acq_fn.model)
