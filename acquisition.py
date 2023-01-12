@@ -21,8 +21,7 @@ class ExpectedInformationGain(AnalyticAcquisitionFunction):
     def __init__(
         self,
         model: Model,
-        algo: type[Algorithm],
-        **kwargs,
+        algo: type[Algorithm]
     ) -> None:
         r"""Single-outcome Expected Improvement (analytic).
 
@@ -30,10 +29,12 @@ class ExpectedInformationGain(AnalyticAcquisitionFunction):
             model: A fitted single-outcome model.
             maximize: If True, consider the problem a maximization problem.
         """
-        super().__init__(model=model, **kwargs)
+
+        super().__init__(model=model)
         self.algo = algo
         self.xs_exe, self.ys_exe = self.algo.get_exe_paths(self.model) #get sampled execution paths and set self.xs_exe, self.ys_exe
-        
+            
+        self.model(self.xs_exe) #call model on some data to avoid errors. we don't need this result.
         
     #     construct a batch of size n_samples fantasy models, 
     #     where each fantasy model is produced by taking the model at the current iteration and conditioning it on 
@@ -65,19 +66,14 @@ class ExpectedInformationGain(AnalyticAcquisitionFunction):
     
         #################################################################
         #calculcate the variance of the posterior at this iteration for each input x
-#         print(X.shape)
         p = self.model.posterior(X)
         var_p = p.variance
         var_p = var_p.reshape(var_p.shape[:-1])
-#         print(var_p.shape)
 
-#         print('X.shape =', X.shape)
-#         print(X.reshape(*X.shape[:-2],1,*X.shape[-2:]).expand(*X.shape[:-2],n_samples,*X.shape[-2:]).shape)
         #calculcate the variance of the fantasy posteriors
         pfs = self.fmodels.posterior(( X.reshape(*X.shape[:-2], 1, *X.shape[-2:]).expand(*X.shape[:-2], self.algo.n_samples, *X.shape[-2:]) ))
         var_pfs = pfs.variance
         var_pfs = var_pfs.reshape(var_pfs.shape[:-1])
-#         print(var_pfs.shape)
 
         ##################################################################
         
@@ -88,16 +84,32 @@ class ExpectedInformationGain(AnalyticAcquisitionFunction):
         h_fantasies = 0.5 * torch.log(2*torch.pi * var_pfs) + 0.5
 
         #compute the Monte-Carlo estimate of the Expected value of the entropy of the fantasy posteriors
-#         print(h_fantasies.shape)
         avg_h_fantasy = torch.mean(h_fantasies, dim=-2)
-#         print(avg_h_fantasy.shape)
 
         #use the above entropies to compute the Expected Information Gain, 
         #where the terms in the equation below correspond to the terms in eq(4) of https://arxiv.org/pdf/2104.09460.pdf
         #(Note, again, that avg_h_fantasy is a Monte-Carlo estimate of the second term on the right)
         eig = h_current - avg_h_fantasy
-#         print(eig.shape)
+
         return eig.reshape(X.shape[:-2])
     
     
-  
+ 
+    def cuda(self):
+        
+        self.xs_exe, self.ys_exe = self.xs_exe.to('cuda'), self.ys_exe.to('cuda')
+        self.model = self.model.cuda()
+
+        xs_exe_transformed = self.model.input_transform(self.xs_exe)
+        ys_exe_transformed = self.model.outcome_transform(self.ys_exe)[0]
+        self.fmodels = self.model.condition_on_observations(xs_exe_transformed, ys_exe_transformed)
+        
+    def cpu(self):
+        
+        self.xs_exe, self.ys_exe = self.xs_exe.cpu(), self.ys_exe.cpu()
+        self.model = self.model.cpu()
+
+        xs_exe_transformed = self.model.input_transform(self.xs_exe)
+        ys_exe_transformed = self.model.outcome_transform(self.ys_exe)[0]
+        self.fmodels = self.model.condition_on_observations(xs_exe_transformed, ys_exe_transformed)
+        
